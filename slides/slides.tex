@@ -1,0 +1,269 @@
+\documentclass[unicode]{beamer}
+
+\usetheme{Madrid} %тема
+%\usecolortheme{beaver} %цветовая гамма
+%http://www.hartwork.org/beamer-theme-matrix/
+
+\usefonttheme[onlylarge]{structurebold}
+\usefonttheme[onlymath]{serif}
+\setbeamerfont*{frametitle}{size=\normalsize,series=\bfseries}
+
+\usepackage[cp1251]{inputenc}
+\usepackage[russian]{babel}
+
+\usepackage{graphics, graphicx}
+\usepackage{epstopdf}
+
+\usepackage[nopar]{lipsum}
+
+%\usepackage{listings}
+\usepackage{color}
+
+\usepackage{url}
+\usepackage{graphicx}
+\usepackage{multicol}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{amssymb}
+
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\usepackage[caption=false]{subfig}
+\usepackage{caption}
+\captionsetup[figure]{labelformat=empty}
+
+\usepackage{multimedia}
+
+\title[SparseDTW]{Алгоритм SparseDTW \\ 
+SparseDTW: A Novel Approach to Speed up Dynamic Time Warping \\ by Al-Naymat et al.}
+
+\author[Белобородов Д.]{Белобородов Дмитрий}
+\institute{517 группа}
+%\date[6 апреля 2018]{6 апреля 2018}
+\date{\today}
+
+%\AtBeginSection[]
+%{
+%  \begin{frame}{Содержание презентации}
+%    \tableofcontents[currentsection,currentsubsection]
+%  \end{frame}
+%}
+
+\begin{document}
+
+\setbeamertemplate{navigation symbols}{}
+
+\begin{frame}
+    \titlepage
+\end{frame}		
+
+\begin{frame}{Постановка задачи}
+Dynamic Time Warping (DTW): выравнять последовательности $x \in \mathbb{R}^n, y \in \mathbb{R}^m$ с функцией штрафа $f:$
+
+$$\sum_{i,j\in path} f(x_i, y_j) \rightarrow \min_{path}$$
+
+Требования к пути: 
+\begin{itemize}
+\item Начинается в $(1,1),$ заканчивается в $(n,m);$
+\item Индексы монотонно не убывают;
+\item Индексы могут возрастать только на 1.
+\end{itemize}
+
+Динамический пересчет цены пути: 
+
+$$D_{ij} = f(x_i, y_j) + min(D_{i-1,j-1}, D_{i-1,j}, D_{i,j-1})$$
+ 
+\end{frame}
+
+\begin{frame}{Пример выравнивания}
+\begin{figure}
+\includegraphics[width=0.8\textwidth]{../sequences.pdf}
+\caption{Пример: две последовательности}
+\end{figure}
+\end{frame}
+
+\begin{frame}{DTW}
+$f(x_i,y_j) = |x_i-y_j|^{0.1}$
+\begin{figure}[H]
+		\subfloat[]{\includegraphics[width=0.45\linewidth]{../dtw_dist.pdf}}
+    \subfloat[]{\includegraphics[width=0.45\linewidth]{../dtw_score.pdf}}
+    \caption{Попарные расстояния (a); стоимости путей и оптимальный путь (b).}
+\end{figure}
+\end{frame}
+
+\begin{frame}{Визуализация выравнивания}
+\begin{figure}
+\includegraphics[width=0.8\textwidth]{../aligned.pdf}
+\caption{Выравнивание: пропуски соответствуют выравниванию с одним элементом}
+\end{figure}
+\end{frame}
+
+\begin{frame}{SparseDTW: идея и свойства}
+Идея: считать не все элементы матрицы, а только те, что соответствуют похожим элементам; хранить их в виде sparse-матрицы.
+
+\bigskip
+
+Свойства:
+\begin{itemize}
+\item Память $O(mn)$ (как и DTW);
+\item Время $O(mn)$ (как и DTW);
+\item Всегда оптимален (действительно?)
+\item Оптимальность не зависит от параметров (действительно?)
+\item Есть сомнения, что вообще работает.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Шаг 1: квантование}
+\begin{itemize}
+\item Разобьем диапазоны значений $x$ и $y$ на $B$ перекрывающихся ячеек с коэффициентом перекрытия $\beta$;
+\item Например, для $B=4, \beta=2: \ [0,0.5], [0.25,0.75], [0.5,0.75], [0.75,1];$ 
+\item Для каждой ячейки найдем индексы из $x$ и $y$ попадающих в нее элементов;
+\item Для всех таких пар индексов отметим ячейки $D_{ij} = f(x_i,y_j);$
+\item Получаем блочную разреженную матрицу.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Шаг 1: квантование}
+
+\begin{columns}[c]
+	\column{0.55\textwidth}
+\begin{figure}
+\includegraphics[width=\textwidth]{../sparse_bins.pdf}
+%\caption{Расстояния для элементов внутри ячеек}
+\end{figure}
+	\column{0.45\textwidth}
+Области могут быть разорваны, пути не удовлетворяют условиям.
+\end{columns}
+\end{frame}
+
+\begin{frame}{Шаг 2: продолжение путей}
+
+\begin{columns}[c]
+	\column{0.55\textwidth}
+\begin{figure}
+\includegraphics[width=\textwidth]{../sparse_upper.pdf}
+%\caption{Расстояния для элементов внутри ячеек и на добавленных путях}
+\end{figure}
+	\column{0.45\textwidth}
+Если у элемента нет правых-нижних соседей, добавить их.
+
+\bigskip
+
+После этого предлагается запустить обычный пересчет DTW и искать путь обратным проходом.
+
+\bigskip
+
+На самом деле не работает: можем застрять в углу и не попасть в $(0,0).$
+\end{columns}
+\end{frame}
+
+\begin{frame}{(Шаг 3): еще раз продолжение путей}
+\begin{columns}[c]
+	\column{0.55\textwidth}
+\begin{figure}
+\includegraphics[width=\textwidth]{../sparse_lower.pdf}
+%\caption{Расстояния для элементов внутри ячеек и на добавленных путях}
+\end{figure}
+	\column{0.45\textwidth}
+Если у элемента нет верхних-левых соседей, добавить их.
+
+\bigskip
+
+Хуже точно не станет: сложность не изменилась, ошибка может только уменьшиться.
+
+\bigskip
+
+Этого нет в статье.
+\end{columns}
+\end{frame}
+
+\begin{frame}{Шаг 4: подсчет стоимости и поиск пути}
+\begin{columns}[c]
+	\column{0.55\textwidth}
+\begin{figure}
+\includegraphics[width=\textwidth]{../sparse_score.pdf}
+%\caption{Расстояния для элементов внутри ячеек и на добавленных путях}
+\end{figure}
+	\column{0.45\textwidth}
+Так же, как в DTW, но с учетом только отмеченных ячеек.
+\end{columns}
+\end{frame}
+
+\begin{frame}{Пример: перевернутая последовательность}
+\begin{columns}[c]
+	\column{0.55\textwidth}
+\begin{figure}
+\includegraphics[width=\textwidth]{../reverse_dtw.pdf}
+%\caption{Расстояния для элементов внутри ячеек и на добавленных путях}
+\end{figure}
+	\column{0.45\textwidth}
+$$x=[1,\dots,50]$$
+$$y=[50,\dots,1]$$
+
+Оптимальный путь: прямое сопоставление элементов (главная диагональ в матрице путей).
+\end{columns}
+\end{frame}
+
+\begin{frame}{Пример: перевернутая последовательность}
+\begin{columns}[c]
+	\column{0.55\textwidth}
+\begin{figure}
+\includegraphics[width=\textwidth]{../reverse_sparse.pdf}
+%\caption{Расстояния для элементов внутри ячеек и на добавленных путях}
+\end{figure}
+	\column{0.45\textwidth}
+	Пример для SparseDTW:
+\begin{itemize}
+\item Показывает необходимость Шага 3;
+\item Показывает неоптимальность;
+\item Позволяет оценить сложность:
+\end{itemize}
+
+$N_{bin}\geqslant B\left(\frac{n}{B}\right)^2 = \frac{n^2}{B}$
+
+$N_{path}= O(nB)$
+
+$N = N_{bin}+N_{path}=O(nB)+O(\frac{n^2}{B})$
+\end{columns}
+\end{frame}
+
+\begin{frame}{Зависимость результатов от параметра $B$}
+Для тестовых последовательностей:
+\begin{figure}[H]
+		\subfloat[]{\includegraphics[width=0.45\linewidth]{../sparse_binscore.pdf}}
+    \subfloat[]{\includegraphics[width=0.45\linewidth]{../sparse_bindense.pdf}}
+    \caption{Зависимость ошибки (a) и плотности матрицы (b) от $B$.}
+\end{figure}
+Плотность матрицы не опускается ниже 0.6, при маленьких и больших $B$ увеличивается.
+\end{frame}
+
+\begin{frame}{Применение алгоритма DTW к звукам}
+Три аудиозаписи: <<four>>, <<five>>, <<nine>>.
+
+$z_k = 0.5(x_i+y_j),\ (i,j)=path_k$
+\begin{center}
+\includegraphics[width=0.6\textwidth]{../audio.pdf}
+
+\movie[]{\fbox{four}}{../four.wav}
+\movie[]{\fbox{five}}{../five.wav}
+\movie[]{\fbox{nine}}{../nine.wav}
+
+\movie[]{\fbox{five-four}}{../fivefour.wav}
+\movie[]{\fbox{five-nine}}{../fivenine.wav}
+\movie[]{\fbox{nine-four}}{../ninefour.wav}
+\end{center}
+\end{frame}
+
+\begin{frame}{Итоги}
+\begin{itemize}
+\item Не похоже, что SparseDTW работает с любыми последовательностями;
+\item Не похоже, что он всегда выдает оптимальный результат: зависит от параметров;
+\item По памяти и по сложности все еще $O(mn),$ хотя есть субоптимальные алгоритмы с $O(m+n)$ памятью;
+\item Все равно медленнее, чем DTW (особенность реализации);
+\item Возможно, стоит разбивать диапазон значений не равномерно, а по квантилям --- будет меньше ячеек и разрывов (нет в статье).
+\end{itemize}
+\end{frame}
+
+
+\end{document}
